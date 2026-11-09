@@ -1,0 +1,753 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Plataforma de gestión de productos para tienda en línea" />
+    <meta name="author" content="Equipo de Desarrollo" />
+    <meta name="keywords" content="productos, gestión, inventario, tienda online" />
+    <title>Gestión de Productos - Tienda en Línea</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        line-height: 1.6;
+        color: #333;
+        background-color: #f5f5f5;
+      }
+      #root {
+        min-height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div style="display: flex; justify-content: center; align-items: center; min-height: 100vh;">
+        <div style="text-align: center;">
+          <h1 style="font-size: 1.5rem; color: #666; margin-bottom: 1rem;">Cargando aplicación...</h1>
+          <div style="width: 40px; height: 40px; margin: 0 auto; border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+          <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>// === ARCHIVO: client/src/features/products/ProductList.tsx ===
+import { useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
+
+export interface ProductDto {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  stock: number;
+  category: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ProductListProps {
+  onEdit?: (product: ProductDto) => void;
+  onDelete?: (id: string) => void;
+}
+
+export function ProductList({ onEdit, onDelete }: ProductListProps) {
+  const [products, setProducts] = useState<ProductDto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+
+  const fetchProducts = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await axios.get<ProductDto[]>('http://localhost:3000/products', {
+        timeout: 10000,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      setProducts(response.data);
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        if (err.response) {
+          setError(`Error del servidor: ${err.response.status} - ${err.response.statusText}`);
+        } else if (err.request) {
+          setError('No se pudo conectar con el servidor. Verifica que el servicio esté funcionando.');
+        } else {
+          setError('Error al procesar la solicitud: ' + err.message);
+        }
+      } else {
+        setError('Error desconocido al cargar los productos');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const handleDelete = useCallback(async (id: string) => {
+    if (!window.confirm('¿Estás seguro de que deseas eliminar este producto?')) {
+      return;
+    }
+
+    try {
+      await axios.delete(`http://localhost:3000/products/${id}`, {
+        timeout: 10000,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      setProducts((prev) => prev.filter((product) => product.id !== id));
+      if (onDelete) {
+        onDelete(id);
+      }
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        if (err.response) {
+          alert(`Error al eliminar: ${err.response.status} - ${err.response.statusText}`);
+        } else if (err.request) {
+          alert('No se pudo conectar con el servidor para eliminar el producto.');
+        } else {
+          alert('Error al eliminar el producto: ' + err.message);
+        }
+      } else {
+        alert('Error desconocido al eliminar el producto');
+      }
+    }
+  }, [onDelete]);
+
+  const handleEdit = useCallback((product: ProductDto) => {
+    if (onEdit) {
+      onEdit(product);
+    }
+  }, [onEdit]);
+
+  const filteredProducts = selectedCategory === 'all'
+    ? products
+    : products.filter((product) => product.category === selectedCategory);
+
+  const categories = Array.from(new Set(products.map((p) => p.category)));
+
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
+
+  if (loading) {
+    return (
+      <div style={{ padding: '2rem', textAlign: 'center' }}>
+        <div style={{ 
+          width: '50px', 
+          height: '50px', 
+          margin: '0 auto', 
+          border: '4px solid #e0e0e0', 
+          borderTop: '4px solid #3498db', 
+          borderRadius: '50%', 
+          animation: 'spin 1s linear infinite' 
+        }} />
+        <p style={{ marginTop: '1rem', color: '#666' }}>Cargando productos...</p>
+        <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: '2rem', textAlign: 'center' }}>
+        <div style={{ 
+          padding: '1.5rem', 
+          backgroundColor: '#fee', 
+          border: '1px solid #fcc', 
+          borderRadius: '8px',
+          color: '#c33'
+        }}>
+          <h3 style={{ marginBottom: '0.5rem' }}>Error al cargar productos</h3>
+          <p>{error}</p>
+          <button 
+            onClick={fetchProducts}
+            style={{
+              marginTop: '1rem',
+              padding: '0.5rem 1.5rem',
+              backgroundColor: '#3498db',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '1rem'
+            }}
+          >
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: '2rem' }}>
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        marginBottom: '1.5rem'
+      }}>
+        <h1 style={{ fontSize: '1.75rem', fontWeight: 600, color: '#2c3e50' }}>
+          Lista de Productos
+        </h1>
+        <button 
+          onClick={fetchProducts}
+          style={{
+            padding: '0.5rem 1rem',
+            backgroundColor: '#27ae60',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '0.9rem'
+          }}
+        >
+          Actualizar Lista
+        </button>
+      </div>
+
+      {categories.length > 0 && (
+        <div style={{ marginBottom: '1.5rem' }}>
+          <label htmlFor="category-filter" style={{ marginRight: '0.5rem', fontWeight: 500 }}>
+            Filtrar por categoría:
+          </label>
+          <select
+            id="category-filter"
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            style={{
+              padding: '0.5rem',
+              borderRadius: '4px',
+              border: '1px solid #ddd',
+              fontSize: '0.9rem'
+            }}
+          >
+            <option value="all">Todas las categorías</option>
+            {categories.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {filteredProducts.length === 0 ? (
+        <div style={{ 
+          padding: '3rem', 
+          textAlign: 'center', 
+          backgroundColor: '#f9f9f9',
+          borderRadius: '8px'
+        }}>
+          <p style={{ color: '#666', fontSize: '1.1rem' }}>
+            No hay productos disponibles
+          </p>
+        </div>
+      ) : (
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+          gap: '1.5rem'
+        }}>
+          {filteredProducts.map((product) => (
+            <div
+              key={product.id}
+              style={{
+                backgroundColor: 'white',
+                borderRadius: '8px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                padding: '1.5rem',
+                transition: 'transform 0.2s, box-shadow 0.2s'
+              }}
+            >
+              <h3 style={{ 
+                fontSize: '1.25rem', 
+                fontWeight: 600, 
+                marginBottom: '0.5rem',
+                color: '#2c3e50'
+              }}>
+                {product.name}
+              </h3>
+              <p style={{ 
+                color: '#666', 
+                fontSize: '0.9rem',
+                marginBottom: '1rem',
+                lineHeight: 1.5
+              }}>
+                {product.description}
+              </p>
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between',
+                marginBottom: '1rem',
+                fontSize: '0.9rem'
+              }}>
+                <span style={{ fontWeight: 600, color: '#27ae60' }}>
+                  ${product.price.toFixed(2)}
+                </span>
+                <span style={{ color: product.stock > 0 ? '#27ae60' : '#e74c3c' }}>
+                  Stock: {product.stock}
+                </span>
+              </div>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                paddingTop: '1rem',
+                borderTop: '1px solid #eee'
+              }}>
+                <span style={{ 
+                  fontSize: '0.8rem', 
+                  color: '#999',
+                  backgroundColor: '#f0f0f0',
+                  padding: '0.25rem 0.5rem',
+                  borderRadius: '4px'
+                }}>
+                  {product.category}
+                </span>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button
+                    onClick={() => handleEdit(product)}
+                    style={{
+                      padding: '0.4rem 0.8rem',
+                      backgroundColor: '#3498db',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '0.85rem'
+                    }}
+                  >
+                    Editar
+                  </button>
+                  <button
+                    onClick={() => handleDelete(product.id)}
+                    style={{
+                      padding: '0.4rem 0.8rem',
+                      backgroundColor: '#e74c3c',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '0.85rem'
+                    }}
+                  >
+                    Eliminar
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}// === ARCHIVO: client/src/features/products/ProductForm.tsx ===
+import { useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
+
+export interface ProductCreateDto {
+  name: string;
+  description: string;
+  price: number;
+  stock: number;
+  category: string;
+}
+
+export interface ProductUpdateDto {
+  name?: string;
+  description?: string;
+  price?: number;
+  stock?: number;
+  category?: string;
+}
+
+export interface ProductDto {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  stock: number;
+  category: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ProductFormProps {
+  product?: ProductDto | null;
+  onSuccess?: () => void;
+  onCancel?: () => void;
+}
+
+export function ProductForm({ product, onSuccess, onCancel }: ProductFormProps) {
+  const [formData, setFormData] = useState<ProductCreateDto>({
+    name: '',
+    description: '',
+    price: 0,
+    stock: 0,
+    category: '',
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+
+  const isEditMode = !!product;
+
+  useEffect(() => {
+    if (product) {
+      setFormData({
+        name: product.name,
+        description: product.description,
+        price: product.price,
+        stock: product.stock,
+        category: product.category,
+      });
+    }
+  }, [product]);
+
+  const validateForm = useCallback((): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (!formData.name.trim()) {
+      errors.name = 'El nombre del producto es requerido';
+    } else if (formData.name.trim().length < 3) {
+      errors.name = 'El nombre debe tener al menos 3 caracteres';
+    } else if (formData.name.trim().length > 100) {
+      errors.name = 'El nombre no puede exceder 100 caracteres';
+    }
+
+    if (!formData.description.trim()) {
+      errors.description = 'La descripción es requerida';
+    } else if (formData.description.trim().length < 10) {
+      errors.description = 'La descripción debe tener al menos 10 caracteres';
+    }
+
+    if (formData.price <= 0) {
+      errors.price = 'El precio debe ser mayor a 0';
+    } else if (formData.price > 999999.99) {
+      errors.price = 'El precio no puede exceder 999,999.99';
+    }
+
+    if (formData.stock < 0) {
+      errors.stock = 'El stock no puede ser negativo';
+    } else if (formData.stock > 999999) {
+      errors.stock = 'El stock no puede exceder 999,999 unidades';
+    }
+
+    if (!formData.category.trim()) {
+      errors.category = 'La categoría es requerida';
+    }
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  }, [formData]);
+
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === 'number' ? parseFloat(value) || 0 : value,
+    }));
+    if (validationErrors[name]) {
+      setValidationErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
+  }, [validationErrors]);
+
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (!validateForm()) {
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      if (isEditMode && product) {
+        const updateData: ProductUpdateDto = {
+          name: formData.name,
+          description: formData.description,
+          price: formData.price,
+          stock: formData.stock,
+          category: formData.category,
+        };
+
+        await axios.put<ProductDto>(`http://localhost:3000/products/${product.id}`, updateData, {
+          timeout: 10000,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+      } else {
+        await axios.post<ProductDto>('http://localhost:3000/products', formData, {
+          timeout: 10000,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+      }
+
+      if (onSuccess) {
+        onSuccess();
+      }
+
+      if (!isEditMode) {
+        setFormData({
+          name: '',
+          description: '',
+          price: 0,
+          stock: 0,
+          category: '',
+        });
+      }
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        if (err.response) {
+          const status = err.response.status;
+          if (status === 400) {
+            setError('Datos inválidos. Por favor verifica la información ingresada.');
+          } else if (status === 404) {
+            setError('El producto no fue encontrado.');
+          } else if (status === 409) {
+            setError('Conflicto de datos. El producto podría estar duplicado.');
+          } else {
+            setError(`Error del servidor: ${status} - ${err.response.statusText}`);
+          }
+        } else if (err.request) {
+          setError('No se pudo conectar con el servidor. Verifica que el servicio esté funcionando.');
+        } else {
+          setError('Error al procesar la solicitud: ' + err.message);
+        }
+      } else {
+        setError('Error desconocido al guardar el producto');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [formData, isEditMode, product, validateForm, onSuccess]);
+
+  const handleReset = useCallback(() => {
+    setFormData({
+      name: '',
+      description: '',
+      price: 0,
+      stock: 0,
+      category: '',
+    });
+    setValidationErrors({});
+    setError(null);
+  }, []);
+
+  const inputStyle = (hasError: boolean): React.CSSProperties => ({
+    width: '100%',
+    padding: '0.75rem',
+    border: `1px solid ${hasError ? '#e74c3c' : '#ddd'}`,
+    borderRadius: '4px',
+    fontSize: '1rem',
+    outline: 'none',
+    transition: 'border-color 0.2s',
+  });
+
+  const labelStyle: React.CSSProperties = {
+    display: 'block',
+    marginBottom: '0.5rem',
+    fontWeight: 500,
+    color: '#2c3e50',
+  };
+
+  const errorStyle: React.CSSProperties = {
+    color: '#e74c3c',
+    fontSize: '0.85rem',
+    marginTop: '0.25rem',
+  };
+
+  return (
+    <div style={{ padding: '2rem', maxWidth: '600px', margin: '0 auto' }}>
+      <h1 style={{ 
+        fontSize: '1.75rem', 
+        fontWeight: 600, 
+        marginBottom: '1.5rem',
+        color: '#2c3e50'
+      }}>
+        {isEditMode ? 'Editar Producto' : 'Crear Nuevo Producto'}
+      </h1>
+
+      {error && (
+        <div style={{
+          padding: '1rem',
+          marginBottom: '1.5rem',
+          backgroundColor: '#fee',
+          border: '1px solid #fcc',
+          borderRadius: '8px',
+          color: '#c33'
+        }}>
+          {error}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit}>
+        <div style={{ marginBottom: '1.25rem' }}>
+          <label htmlFor="name" style={labelStyle}>
+            Nombre del Producto *
+          </label>
+          <input
+            type="text"
+            id="name"
+            name="name"
+            value={formData.name}
+            onChange={handleChange}
+            disabled={loading}
+            style={inputStyle(!!validationErrors.name)}
+            placeholder="Ingresa el nombre del producto"
+          />
+          {validationErrors.name && (
+            <p style={errorStyle}>{validationErrors.name}</p>
+          )}
+        </div>
+
+        <div style={{ marginBottom: '1.25rem' }}>
+          <label htmlFor="description" style={labelStyle}>
+            Descripción *
+          </label>
+          <textarea
+            id="description"
+            name="description"
+            value={formData.description}
+            onChange={handleChange}
+            disabled={loading}
+            rows={4}
+            style={{ ...inputStyle(!!validationErrors.description), resize: 'vertical' }}
+            placeholder="Describe las características del producto"
+          />
+          {validationErrors.description && (
+            <p style={errorStyle}>{validationErrors.description}</p>
+          )}
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
+          <div>
+            <label htmlFor="price" style={labelStyle}>
+              Precio *
+            </label>
+            <input
+              type="number"
+              id="price"
+              name="price"
+              value={formData.price}
+              onChange={handleChange}
+              disabled={loading}
+              min="0"
+              step="0.01"
+              style={inputStyle(!!validationErrors.price)}
+              placeholder="0.00"
+            />
+            {validationErrors.price && (
+              <p style={errorStyle}>{validationErrors.price}</p>
+            )}
+          </div>
+
+          <div>
+            <label htmlFor="stock" style={labelStyle}>
+              Stock *
+            </label>
+            <input
+              type="number"
+              id="stock"
+              name="stock"
+              value={formData.stock}
+              onChange={handleChange}
+              disabled={loading}
+              min="0"
+              step="1"
+              style={inputStyle(!!validationErrors.stock)}
+              placeholder="0"
+            />
+            {validationErrors.stock && (
+              <p style={errorStyle}>{validationErrors.stock}</p>
+            )}
+          </div>
+        </div>
+
+        <div style={{ marginBottom: '1.5rem' }}>
+          <label htmlFor="category" style={labelStyle}>
+            Categoría *
+          </label>
+          <select
+            id="category"
+            name="category"
+            value={formData.category}
+            onChange={handleChange}
+            disabled={loading}
+            style={inputStyle(!!validationErrors.category)}
+          >
+            <option value="">Selecciona una categoría</option>
+            <option value="Electrónica">Electrónica</option>
+            <option value="Ropa">Ropa</option>
+            <option value="Alimentos">Alimentos</option>
+            <option value="Hogar">Hogar</option>
+            <option value="Deportes">Deportes</option>
+            <option value="Libros">Libros</option>
+            <option value="Juguetes">Juguetes</option>
+            <option value="Otros">Otros</option>
+          </select>
+          {validationErrors.category && (
+            <p style={errorStyle}>{validationErrors.category}</p>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+          <button
+            type="button"
+            onClick={onCancel || handleReset}
+            disabled={loading}
+            style={{
+              padding: '0.75rem 1.5rem',
+              backgroundColor: '#95a5a6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              fontSize: '1rem',
+              opacity: loading ? 0.7 : 1,
+            }}
+          >
+            {onCancel ? 'Cancelar' : 'Limpiar'}
+          </button>
+
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              padding: '0.75rem 1.5rem',
+              backgroundColor: loading ? '#7f8c8d' : '#27ae60',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              fontSize: '1rem',
+              opacity: loading ? 0.7 : 1,
+            }}
+          >
+            {loading 
+              ? (isEditMode ? 'Actualizando...' : 'Guardando...') 
+              : (isEditMode ? 'Actualizar Producto' : 'Crear Producto')}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
